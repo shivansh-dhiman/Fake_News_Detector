@@ -1,0 +1,21 @@
+text,label
+"The Great Wall of China stretches thousands of miles and was built over multiple dynasties to defend against invasions.",REAL
+"Water freezes at 0 degrees Celsius under standard atmospheric pressure.",REAL
+"The Eiffel Tower in Paris was completed in 1889 as the entrance arch for that year's World's Fair.",REAL
+"NASA's Apollo 11 mission landed astronauts Neil Armstrong and Buzz Aldrin on the Moon in July 1969.",REAL
+"An adult human skeleton typically contains 206 bones.",REAL
+"Mount Everest, located in the Himalayas, is the highest mountain above sea level on Earth.",REAL
+"The World Health Organization declared COVID-19 a global pandemic in March 2020.",REAL
+"Photosynthesis is the process by which plants convert sunlight into chemical energy.",REAL
+"The United Nations was founded in 1945 after World War II to promote international cooperation.",REAL
+"Albert Einstein developed the theory of general relativity, which he published in 1915.",REAL
+"Drinking bleach can cure COVID-19 within 24 hours, according to a viral social media post.",FAKE
+"5G cell towers spread coronavirus by weakening the human immune system through radio waves.",FAKE
+"NASA has confirmed the Earth will experience 15 days of complete darkness in November due to a rare planetary alignment.",FAKE
+"COVID-19 vaccines contain microchips designed to track people's locations.",FAKE
+"The 1969 Moon landing was staged in a Hollywood film studio and never actually happened.",FAKE
+"Eating watermelon seeds will cause a watermelon to grow inside your stomach.",FAKE
+"The Great Wall of China is the only man-made structure visible from space with the naked eye.",FAKE
+"Vaccines have been definitively proven to cause autism in children.",FAKE
+"The Earth is flat and NASA has been faking all space missions to hide this truth.",FAKE
+"Heating food in a microwave destroys all of its nutrients and makes it toxic to eat.",FAKE

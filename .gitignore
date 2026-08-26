@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/history.db
+evaluation_report.json
+evaluation_report_kaggle.json
+data/Fake.csv
+data/True.csv
+data/kaggle_sample.csv
+data/*.joblib
+.pytest_cache/
+

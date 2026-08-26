@@ -1,0 +1,1331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Veritas — Fake News Detector</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236c7bff'/%3E%3Cstop offset='1' stop-color='%2300d9c0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M12 1 L21 5 V11 C21 17 17 21.5 12 23 C7 21.5 3 17 3 11 V5 Z'/%3E%3Cpath fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' d='M7.5 12 L10.5 15 L16.5 8'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+  (function () {
+    try {
+      var stored = localStorage.getItem('veritas-theme');
+      var theme = stored === 'light' || stored === 'dark'
+        ? stored
+        : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {}
+  })();
+</script>
+<style>
+  :root {
+    --bg: #f4f8ff;
+    --bg-alt: #e8f0ff;
+    --glass: rgba(255, 255, 255, 0.72);
+    --glass-border: rgba(37, 99, 235, 0.14);
+    --glass-border-hover: rgba(37, 99, 235, 0.4);
+    --text: #0f1b3d;
+    --muted: #5b6688;
+    --muted-dim: #8792ae;
+    --accent: #2563eb;
+    --accent-2: #0ea5e9;
+    --real: #12946f;
+    --fake: #e0335f;
+    --uncertain: #b8860b;
+    --surface: #ffffff;
+    --radius: 18px;
+    --font-display: 'Space Grotesk', 'Inter', sans-serif;
+    --font-body: 'Inter', -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #060a16;
+    --bg-alt: #0d1530;
+    --glass: rgba(17, 24, 44, 0.72);
+    --glass-border: rgba(108, 141, 255, 0.18);
+    --glass-border-hover: rgba(108, 141, 255, 0.48);
+    --text: #eef1fb;
+    --muted: #97a2c6;
+    --muted-dim: #6a739a;
+    --accent: #6c8dff;
+    --accent-2: #22d3ee;
+    --real: #34d399;
+    --fake: #fb7185;
+    --uncertain: #fbbf24;
+    --surface: #16203f;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(ellipse 80% 60% at 50% -10%, var(--bg-alt) 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+
+  #bg-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    pointer-events: none;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 64px 24px 100px;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 56px;
+    opacity: 0;
+    animation: fadeSlideDown 0.7s ease forwards;
+  }
+  .logo-mark {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+  }
+  .brand {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+  }
+  .brand-tag {
+    font-size: 0.72rem;
+    color: var(--muted-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 1px;
+  }
+  .theme-toggle {
+    margin-left: auto;
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: border-color 0.25s ease, color 0.25s ease, transform 0.2s ease, background-color 0.3s ease;
+  }
+  .theme-toggle:hover { border-color: var(--glass-border-hover); color: var(--accent); transform: translateY(-1px) rotate(8deg); }
+  .theme-toggle svg { width: 18px; height: 18px; }
+  .theme-toggle .icon-moon { display: none; }
+  :root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+  :root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 22px;
+    opacity: 0;
+    animation: fadeSlideUp 0.7s ease 0.1s forwards;
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-2);
+    box-shadow: 0 0 8px var(--accent-2);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+    opacity: 0;
+    animation: fadeSlideUp 0.7s ease 0.2s forwards;
+  }
+  h1 .grad {
+    background: linear-gradient(100deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.55;
+    opacity: 0;
+    animation: fadeSlideUp 0.7s ease 0.3s forwards;
+  }
+
+  /* ---------- Hero 3D object ---------- */
+  .hero-3d-wrap {
+    position: relative;
+    width: min(380px, 68vw);
+    aspect-ratio: 1 / 1;
+    margin: 12px auto 8px;
+    opacity: 0;
+    animation: fadeSlideUp 0.8s ease 0.35s forwards;
+    touch-action: pan-y;
+  }
+  .hero-3d-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -25%;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.24), transparent 68%);
+    filter: blur(18px);
+    z-index: -1;
+    pointer-events: none;
+  }
+  .hero-3d-wrap canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+  }
+  .hero-3d-wrap:active canvas { cursor: grabbing; }
+
+  /* ---------- Glass panel ---------- */
+  .panel {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 28px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 20px 60px -24px rgba(37, 99, 235, 0.3);
+    opacity: 0;
+    animation: fadeSlideUp 0.7s ease 0.4s forwards;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+  }
+
+  .section-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted-dim);
+    margin: 0 0 12px;
+    font-weight: 600;
+  }
+
+  /* ---------- Examples ---------- */
+  .examples { margin-bottom: 24px; }
+  .example-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .example-chip {
+    text-align: left;
+    background: rgba(37, 99, 235, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    color: var(--text);
+    padding: 16px;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .example-chip .num {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: linear-gradient(100deg, var(--accent), var(--accent-2));
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .example-chip .snippet {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .example-chip:hover {
+    border-color: var(--glass-border-hover);
+    background: rgba(37, 99, 235, 0.07);
+    transform: scale(1.04) translateY(-3px);
+    box-shadow: 0 14px 30px -16px rgba(37, 99, 235, 0.4);
+  }
+  .example-chip:hover .snippet { color: var(--text); }
+  .example-chip:active { transform: scale(1.01) translateY(0); }
+
+  /* ---------- Mode tabs ---------- */
+  .mode-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .mode-tabs {
+    display: inline-flex;
+    background: rgba(37, 99, 235, 0.06);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .mode-tab {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .mode-tab.active { background: var(--surface); color: var(--accent); box-shadow: 0 2px 8px -2px rgba(37,99,235,0.3); transition: background-color 0.3s ease, color 0.3s ease; }
+
+  #urlInput {
+    display: none;
+    width: 100%;
+    background: rgba(37, 99, 235, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    color: var(--text);
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  #urlInput::placeholder { color: var(--muted-dim); }
+  #urlInput:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+  }
+
+  /* ---------- Input ---------- */
+  textarea {
+    width: 100%;
+    min-height: 150px;
+    background: rgba(37, 99, 235, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    color: var(--text);
+    padding: 16px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  }
+  textarea::placeholder { color: var(--muted-dim); }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+  }
+
+  .action-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 16px;
+  }
+
+  button.primary {
+    position: relative;
+    background: linear-gradient(100deg, var(--accent), var(--accent-2));
+    color: #ffffff;
+    border: none;
+    padding: 13px 26px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 8px 24px -8px rgba(37, 99, 235, 0.5);
+  }
+  button.primary:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 28px -8px rgba(37, 99, 235, 0.6); }
+  button.primary:active { transform: translateY(0) scale(1); }
+  button.primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+  .spinner-row {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 0.88rem;
+  }
+  .spinner-row.active { display: flex; }
+  .ring {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(37, 99, 235, 0.2);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+
+  #error, .error-box {
+    display: none;
+    color: var(--fake);
+    background: rgba(224, 51, 95, 0.08);
+    border: 1px solid rgba(224, 51, 95, 0.25);
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-top: 16px;
+    font-size: 0.88rem;
+  }
+
+  /* ---------- Results ---------- */
+  #result { margin-top: 28px; display: none; }
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 10px 30px -18px rgba(37, 99, 235, 0.25);
+    opacity: 0;
+    transform: translateY(14px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
+  }
+  .card.reveal { animation: fadeSlideUp 0.55s ease forwards; }
+  .card:hover {
+    transform: scale(1.015);
+    border-color: var(--glass-border-hover);
+    box-shadow: 0 16px 40px -16px rgba(37, 99, 235, 0.3);
+  }
+
+  .verdict-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    font-family: var(--font-display);
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .badge.real { background: rgba(18,148,111,0.12); color: var(--real); }
+  .badge.real .dot { background: var(--real); box-shadow: 0 0 8px var(--real); }
+  .badge.fake { background: rgba(224,51,95,0.12); color: var(--fake); }
+  .badge.fake .dot { background: var(--fake); box-shadow: 0 0 8px var(--fake); }
+  .badge.uncertain { background: rgba(184,134,11,0.12); color: var(--uncertain); }
+  .badge.uncertain .dot { background: var(--uncertain); box-shadow: 0 0 8px var(--uncertain); }
+  .badge.pdf { background: rgba(37,99,235,0.12); color: var(--accent); }
+  .badge.pdf .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .badge.web { background: rgba(14,165,233,0.12); color: var(--accent-2); }
+  .badge.web .dot { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+  .badge.none { background: rgba(184,134,11,0.12); color: var(--uncertain); }
+  .badge.none .dot { background: var(--uncertain); box-shadow: 0 0 8px var(--uncertain); }
+
+  /* ---------- App-level mode tabs ---------- */
+  .app-mode-tabs { display: flex; justify-content: center; margin-bottom: 32px; }
+
+  /* ---------- Q&A: PDF list ---------- */
+  #pdfInput { color: var(--muted); font-size: 0.88rem; }
+  .pdf-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(37, 99, 235, 0.035);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    color: var(--text);
+  }
+
+  .confidence-track {
+    flex: 1;
+    min-width: 120px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.1);
+    overflow: hidden;
+  }
+  .confidence-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%;
+    transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .confidence-text { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+
+  .explanation { line-height: 1.6; color: var(--text); font-size: 0.95rem; }
+
+  ul.claims { margin: 0; padding-left: 0; list-style: none; }
+  ul.claims li {
+    padding: 11px 14px;
+    background: rgba(37, 99, 235, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  ul.claims li:hover { transform: scale(1.015); border-color: var(--glass-border-hover); }
+  ul.claims li:last-child { margin-bottom: 0; }
+  ul.claims li a { color: var(--accent-2); text-decoration: none; word-break: break-all; }
+  ul.claims li a:hover { text-decoration: underline; }
+
+  /* ---------- Style signals ---------- */
+  .style-meter-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .style-meter-track {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(184, 134, 11, 0.12);
+    overflow: hidden;
+  }
+  .style-meter-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #f5c451, var(--uncertain));
+    width: 0%;
+    transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .style-flags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .style-flag {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(184, 134, 11, 0.1);
+    color: var(--uncertain);
+    border: 1px solid rgba(184, 134, 11, 0.25);
+  }
+  .style-clean { color: var(--real); font-size: 0.85rem; }
+
+  /* ---------- History ---------- */
+  .history-section { margin-top: 40px; }
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(37, 99, 235, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    width: 100%;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .history-item:hover {
+    transform: scale(1.015);
+    border-color: var(--glass-border-hover);
+    background: rgba(37, 99, 235, 0.06);
+  }
+  .history-item .mini-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .history-item .mini-dot.real { background: var(--real); }
+  .history-item .mini-dot.fake { background: var(--fake); }
+  .history-item .mini-dot.uncertain { background: var(--uncertain); }
+  .history-item .preview {
+    flex: 1;
+    font-size: 0.85rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .history-item .when { font-size: 0.75rem; color: var(--muted-dim); flex-shrink: 0; }
+  .history-empty { color: var(--muted-dim); font-size: 0.85rem; }
+
+  /* ---------- Footer ---------- */
+  footer {
+    text-align: center;
+    color: var(--muted-dim);
+    font-size: 0.78rem;
+    margin-top: 56px;
+  }
+
+  /* ---------- Animations ---------- */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeSlideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  @media (max-width: 640px) {
+    .example-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 560px) {
+    .page { padding: 40px 18px 80px; }
+    .panel { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div class="page">
+  <header>
+    <svg class="logo-mark" viewBox="0 0 24 24">
+      <defs>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#6c7bff"/>
+          <stop offset="1" stop-color="#00d9c0"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#logoGrad)" d="M12 1 L21 5 V11 C21 17 17 21.5 12 23 C7 21.5 3 17 3 11 V5 Z"/>
+      <path fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7.5 12 L10.5 15 L16.5 8"/>
+    </svg>
+    <div>
+      <div class="brand">Veritas</div>
+      <div class="brand-tag">Fake News Detection</div>
+    </div>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="hero">
+    <div class="eyebrow"><span class="dot"></span> Multi-agent AI verification pipeline</div>
+    <h1>Know what's <span class="grad">real</span> before you share it.</h1>
+    <p class="subtitle">Paste an article or claim. Our agents extract the facts, cross-check them against published fact-checks, and hand you a verdict.</p>
+    <div class="hero-3d-wrap" id="hero3dWrap">
+      <canvas id="hero-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="app-mode-tabs mode-tabs">
+    <button type="button" class="mode-tab active" id="factCheckAppBtn">Fact Checker</button>
+    <button type="button" class="mode-tab" id="qaAppBtn">Ask a Question</button>
+  </div>
+
+  <div id="factCheckView">
+  <div class="panel">
+    <div class="examples">
+      <p class="section-title">Try an example</p>
+      <div class="example-grid">
+        <button type="button" class="example-chip" data-example="0">
+          <span class="num">1</span>
+          <span class="snippet">NASA's Perseverance rover has been collecting rock samples on Mars since 2021 as part of a mission to search for signs of ancient microbial life…</span>
+        </button>
+        <button type="button" class="example-chip" data-example="1">
+          <span class="num">2</span>
+          <span class="snippet">Local officials have confirmed that governments are secretly using 5G towers to control citizens' minds through radio frequency signals…</span>
+        </button>
+        <button type="button" class="example-chip" data-example="2">
+          <span class="num">3</span>
+          <span class="snippet">A viral post claims NASA scientists have confirmed Earth will experience 15 days of total darkness in November due to a rare planetary alignment…</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="mode-row">
+      <p class="section-title" style="margin-bottom:0;">Analyze your own</p>
+      <div class="mode-tabs">
+        <button type="button" class="mode-tab active" id="textModeBtn">Text</button>
+        <button type="button" class="mode-tab" id="urlModeBtn">URL</button>
+      </div>
+    </div>
+    <textarea id="articleText" placeholder="Paste article text here..."></textarea>
+    <input type="url" id="urlInput" placeholder="https://example.com/news-article" />
+
+    <div class="action-row">
+      <button class="primary" id="checkBtn">Check News</button>
+      <div class="spinner-row" id="spinner"><span class="ring"></span> Analyzing claims and checking sources…</div>
+    </div>
+    <div id="error"></div>
+  </div>
+
+  <div id="result">
+    <div class="card">
+      <div class="verdict-row">
+        <span class="badge" id="verdictBadge"><span class="dot"></span><span></span></span>
+        <div class="confidence-track"><div class="confidence-fill" id="confidenceFill"></div></div>
+        <span class="confidence-text" id="confidenceText"></span>
+      </div>
+      <div class="explanation" id="explanationText"></div>
+    </div>
+
+    <div class="card" id="styleCard">
+      <p class="section-title">Writing Style Signals</p>
+      <div class="style-meter-row">
+        <div class="style-meter-track"><div class="style-meter-fill" id="styleMeterFill"></div></div>
+        <span class="confidence-text" id="styleScoreText"></span>
+      </div>
+      <div class="style-flags" id="styleFlags"></div>
+    </div>
+
+    <div class="card" id="claimsCard">
+      <p class="section-title">Extracted Claims</p>
+      <ul class="claims" id="claimsList"></ul>
+    </div>
+
+    <div class="card" id="sourcesCard">
+      <p class="section-title">Sources</p>
+      <ul class="claims" id="sourcesList"></ul>
+    </div>
+  </div>
+
+  <div class="panel history-section">
+    <p class="section-title">Recent Checks</p>
+    <div class="history-list" id="historyList">
+      <p class="history-empty">No checks yet — analyze something above to see it here.</p>
+    </div>
+  </div>
+  </div>
+
+  <div id="qaView" style="display:none;">
+    <div class="panel">
+      <p class="section-title">Upload reference PDFs</p>
+      <input type="file" id="pdfInput" accept="application/pdf" multiple />
+      <div id="pdfList" style="margin-top:12px; display:flex; flex-direction:column; gap:8px;"></div>
+
+      <p class="section-title" style="margin-top:28px;">Ask a question</p>
+      <textarea id="questionText" style="min-height:100px;" placeholder="Ask something about your uploaded PDFs, or any current-events question..."></textarea>
+
+      <div class="action-row">
+        <button class="primary" id="askBtn">Ask</button>
+        <div class="spinner-row" id="qaSpinner"><span class="ring"></span> Searching PDFs and the web…</div>
+      </div>
+      <div id="qaError" class="error-box"></div>
+    </div>
+
+    <div id="qaResult" style="margin-top:28px; display:none;">
+      <div class="card">
+        <div class="verdict-row">
+          <span class="badge" id="qaSourceBadge"><span class="dot"></span><span></span></span>
+          <span class="confidence-text" id="qaConfidenceText"></span>
+        </div>
+        <div class="explanation" id="qaAnswerText"></div>
+      </div>
+      <div class="card" id="qaCitationsCard">
+        <p class="section-title">Sources</p>
+        <ul class="claims" id="qaCitationsList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>Verdicts are generated by AI and third-party fact-check sources — always use your own judgement.</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+/* ---------- Three.js background: a slowly rotating verification network ---------- */
+(function initBackground() {
+  const canvas = document.getElementById('bg-canvas');
+  if (!window.THREE || !canvas) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.z = 13;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const NODE_COUNT = window.innerWidth < 700 ? 42 : 80;
+  const RADIUS = 9;
+  const positions = [];
+  for (let i = 0; i < NODE_COUNT; i++) {
+    const v = new THREE.Vector3(
+      (Math.random() - 0.5) * RADIUS * 2,
+      (Math.random() - 0.5) * RADIUS * 2,
+      (Math.random() - 0.5) * RADIUS * 1.2
+    );
+    positions.push(v);
+  }
+
+  const pointsGeom = new THREE.BufferGeometry().setFromPoints(positions);
+  const pointsMat = new THREE.PointsMaterial({ color: 0x2563eb, size: 0.075, transparent: true, opacity: 0.55 });
+  group.add(new THREE.Points(pointsGeom, pointsMat));
+
+  const linePositions = [];
+  const MAX_DIST = 3.4;
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      if (positions[i].distanceTo(positions[j]) < MAX_DIST) {
+        linePositions.push(positions[i].x, positions[i].y, positions[i].z);
+        linePositions.push(positions[j].x, positions[j].y, positions[j].z);
+      }
+    }
+  }
+  const lineGeom = new THREE.BufferGeometry();
+  lineGeom.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.4 });
+  group.add(new THREE.LineSegments(lineGeom, lineMat));
+
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', (e) => {
+    mouseX = (e.clientX / window.innerWidth - 0.5);
+    mouseY = (e.clientY / window.innerHeight - 0.5);
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  function animate() {
+    requestAnimationFrame(animate);
+    group.rotation.y += 0.0009;
+    group.rotation.x += 0.0002;
+    camera.position.x += (mouseX * 1.5 - camera.position.x) * 0.02;
+    camera.position.y += (-mouseY * 1.5 - camera.position.y) * 0.02;
+    camera.lookAt(scene.position);
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+/* ---------- Hero 3D object: rotating verification network ---------- */
+(function initHeroObject() {
+  const wrap = document.getElementById('hero3dWrap');
+  const canvas = document.getElementById('hero-canvas');
+  if (!window.THREE || !wrap || !canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  camera.position.set(0, 0, 6.2);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+
+  function sizeToWrap() {
+    const size = wrap.clientWidth || 320;
+    renderer.setSize(size, size, false);
+    camera.aspect = 1;
+    camera.updateProjectionMatrix();
+  }
+  sizeToWrap();
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  // Outer wireframe shell — the "verification network" shield
+  const shellGeom = new THREE.IcosahedronGeometry(1.9, 1);
+  const shellEdges = new THREE.EdgesGeometry(shellGeom);
+  const shell = new THREE.LineSegments(
+    shellEdges,
+    new THREE.LineBasicMaterial({ color: 0x5b7cfa, transparent: true, opacity: 0.55 })
+  );
+  group.add(shell);
+
+  // Faint glass fill so the shell reads as a solid volume
+  const fill = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.86, 1),
+    new THREE.MeshBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.045, side: THREE.DoubleSide })
+  );
+  group.add(fill);
+
+  // Vertex nodes — each one a "checked" data point
+  const nodePositions = shellGeom.getAttribute('position');
+  const nodesGeom = new THREE.BufferGeometry();
+  nodesGeom.setAttribute('position', nodePositions.clone());
+  const nodes = new THREE.Points(
+    nodesGeom,
+    new THREE.PointsMaterial({ color: 0x00d9c0, size: 0.09, sizeAttenuation: true, transparent: true, opacity: 0.9 })
+  );
+  group.add(nodes);
+
+  // Tilted orbit ring
+  const ringGeom = new THREE.TorusGeometry(2.35, 0.012, 8, 96);
+  const ring = new THREE.Mesh(ringGeom, new THREE.MeshBasicMaterial({ color: 0x00d9c0, transparent: true, opacity: 0.5 }));
+  ring.rotation.x = Math.PI / 2.4;
+  ring.rotation.y = 0.4;
+  group.add(ring);
+
+  // Glowing core (soft sprite + solid center)
+  function makeGlowTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.35, 'rgba(108,123,255,0.55)');
+    g.addColorStop(1, 'rgba(108,123,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+  const glowSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: makeGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  );
+  glowSprite.scale.set(1.6, 1.6, 1);
+  group.add(glowSprite);
+
+  const core = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.3, 1),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  group.add(core);
+
+  // Periodic outward "scan pulse" ring
+  const scanRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.9, 0.95, 48),
+    new THREE.MeshBasicMaterial({ color: 0x00d9c0, transparent: true, opacity: 0, side: THREE.DoubleSide })
+  );
+  group.add(scanRing);
+
+  let targetRotX = 0, targetRotY = 0;
+  let currentRotX = 0, currentRotY = 0;
+
+  function onPointerMove(clientX, clientY) {
+    const rect = wrap.getBoundingClientRect();
+    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = ((clientY - rect.top) / rect.height) * 2 - 1;
+    targetRotY = nx * 0.5;
+    targetRotX = ny * 0.35;
+  }
+  wrap.addEventListener('pointermove', (e) => onPointerMove(e.clientX, e.clientY));
+  wrap.addEventListener('pointerleave', () => { targetRotX = 0; targetRotY = 0; });
+
+  window.addEventListener('resize', sizeToWrap);
+  if (window.ResizeObserver) new ResizeObserver(sizeToWrap).observe(wrap);
+
+  if (reduceMotion) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const SCAN_DURATION = 2600;
+  let start = performance.now();
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    const t = (now - start) / 1000;
+
+    group.rotation.y += 0.0035;
+    currentRotX += (targetRotX - currentRotX) * 0.06;
+    currentRotY += (targetRotY - currentRotY) * 0.06;
+    group.rotation.x = currentRotX;
+    shell.rotation.y = currentRotY * 0.5;
+
+    ring.rotation.z += 0.004;
+
+    const pulse = 1 + Math.sin(t * 2) * 0.08;
+    glowSprite.scale.set(1.6 * pulse, 1.6 * pulse, 1);
+    core.scale.setScalar(1 + Math.sin(t * 2) * 0.12);
+
+    const progress = ((now - start) % SCAN_DURATION) / SCAN_DURATION;
+    const scale = 0.9 + progress * 1.7;
+    scanRing.scale.setScalar(scale);
+    scanRing.material.opacity = 0.5 * (1 - progress);
+    scanRing.rotation.x = Math.PI / 2;
+
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(animate);
+})();
+
+/* ---------- Theme toggle ---------- */
+(function initThemeToggle() {
+  const toggle = document.getElementById('themeToggle');
+  if (!toggle) return;
+  toggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('veritas-theme', next); } catch (e) {}
+  });
+})();
+
+/* ---------- App logic ---------- */
+const btn = document.getElementById('checkBtn');
+const textarea = document.getElementById('articleText');
+const urlInput = document.getElementById('urlInput');
+const textModeBtn = document.getElementById('textModeBtn');
+const urlModeBtn = document.getElementById('urlModeBtn');
+const spinner = document.getElementById('spinner');
+const errorBox = document.getElementById('error');
+const resultBox = document.getElementById('result');
+
+let mode = 'text';
+
+function setMode(newMode) {
+  mode = newMode;
+  const isText = mode === 'text';
+  textarea.style.display = isText ? 'block' : 'none';
+  urlInput.style.display = isText ? 'none' : 'block';
+  textModeBtn.classList.toggle('active', isText);
+  urlModeBtn.classList.toggle('active', !isText);
+  errorBox.style.display = 'none';
+}
+textModeBtn.addEventListener('click', () => setMode('text'));
+urlModeBtn.addEventListener('click', () => setMode('url'));
+
+function verdictClass(verdict) {
+  if (/real/i.test(verdict)) return 'real';
+  if (/fake/i.test(verdict)) return 'fake';
+  return 'uncertain';
+}
+
+async function checkNews() {
+  errorBox.style.display = 'none';
+  resultBox.style.display = 'none';
+
+  let payload;
+  if (mode === 'text') {
+    const text = textarea.value.trim();
+    if (text.length < 10) {
+      errorBox.textContent = 'Please paste at least 10 characters of text.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    payload = { text };
+  } else {
+    const url = urlInput.value.trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+      errorBox.textContent = 'Please enter a valid URL starting with http:// or https://';
+      errorBox.style.display = 'block';
+      return;
+    }
+    payload = { url };
+  }
+
+  btn.disabled = true;
+  spinner.classList.add('active');
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    renderResult(data);
+    loadHistory();
+  } catch (e) {
+    errorBox.textContent = e.message || 'Something went wrong.';
+    errorBox.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  }
+}
+
+function renderResult(data) {
+  const badge = document.getElementById('verdictBadge');
+  const cls = verdictClass(data.verdict);
+  badge.className = 'badge ' + cls;
+  badge.innerHTML = `<span class="dot"></span><span>${data.verdict}</span>`;
+
+  const pct = Math.round(data.confidence * 100);
+  document.getElementById('confidenceText').textContent = `${pct}% confidence`;
+  document.getElementById('explanationText').textContent = data.explanation;
+
+  const stylePct = Math.round((data.style_score || 0) * 100);
+  document.getElementById('styleScoreText').textContent = `${stylePct}% sensationalized`;
+  const styleFlagsBox = document.getElementById('styleFlags');
+  styleFlagsBox.innerHTML = '';
+  if ((data.style_flags || []).length) {
+    data.style_flags.forEach(flag => {
+      const span = document.createElement('span');
+      span.className = 'style-flag';
+      span.textContent = flag;
+      styleFlagsBox.appendChild(span);
+    });
+  } else {
+    styleFlagsBox.innerHTML = '<span class="style-clean">No manipulative style signals detected.</span>';
+  }
+
+  const claimsList = document.getElementById('claimsList');
+  claimsList.innerHTML = '';
+  (data.claims || []).forEach(claim => {
+    const li = document.createElement('li');
+    li.textContent = claim;
+    claimsList.appendChild(li);
+  });
+  document.getElementById('claimsCard').style.display = (data.claims || []).length ? 'block' : 'none';
+
+  const sourcesList = document.getElementById('sourcesList');
+  sourcesList.innerHTML = '';
+  (data.sources || []).forEach(url => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = url;
+    li.appendChild(a);
+    sourcesList.appendChild(li);
+  });
+  document.getElementById('sourcesCard').style.display = (data.sources || []).length ? 'block' : 'none';
+
+  resultBox.style.display = 'block';
+
+  const cards = resultBox.querySelectorAll('.card');
+  cards.forEach((card, i) => {
+    card.classList.remove('reveal');
+    card.style.animationDelay = `${i * 0.1}s`;
+    void card.offsetWidth;
+    card.classList.add('reveal');
+  });
+
+  requestAnimationFrame(() => {
+    document.getElementById('confidenceFill').style.width = pct + '%';
+    document.getElementById('styleMeterFill').style.width = stylePct + '%';
+  });
+
+  resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function timeAgo(isoString) {
+  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+async function loadHistory() {
+  const list = document.getElementById('historyList');
+  try {
+    const res = await fetch('/history?limit=8');
+    if (!res.ok) return;
+    const entries = await res.json();
+
+    if (!entries.length) {
+      list.innerHTML = '<p class="history-empty">No checks yet — analyze something above to see it here.</p>';
+      return;
+    }
+
+    list.innerHTML = '';
+    entries.forEach(entry => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'history-item';
+      item.innerHTML = `
+        <span class="mini-dot ${verdictClass(entry.verdict)}"></span>
+        <span class="preview">${entry.input_preview}</span>
+        <span class="when">${timeAgo(entry.created_at)}</span>
+      `;
+      item.addEventListener('click', () => {
+        renderResult(entry.result);
+      });
+      list.appendChild(item);
+    });
+  } catch (e) {
+    // history is a convenience feature; fail silently if unreachable
+  }
+}
+
+const examples = [
+  "NASA's Perseverance rover has been collecting rock samples on Mars since 2021 as part of a mission to search for signs of ancient microbial life, with plans to return the samples to Earth in the 2030s.",
+  "Local officials have confirmed that governments are secretly using 5G towers to control citizens' minds through radio frequency signals embedded in phone towers.",
+  "A viral post claims NASA scientists have confirmed Earth will experience 15 days of total darkness in November due to a rare planetary alignment, according to unnamed sources."
+];
+
+document.querySelectorAll('.example-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    setMode('text');
+    const idx = Number(chip.dataset.example);
+    textarea.value = examples[idx];
+    textarea.focus();
+  });
+});
+
+btn.addEventListener('click', checkNews);
+textarea.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) checkNews();
+});
+urlInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') checkNews();
+});
+
+loadHistory();
+
+/* ---------- App-level mode toggle (Fact Checker vs Q&A) ---------- */
+const factCheckAppBtn = document.getElementById('factCheckAppBtn');
+const qaAppBtn = document.getElementById('qaAppBtn');
+const factCheckView = document.getElementById('factCheckView');
+const qaView = document.getElementById('qaView');
+
+function setAppMode(appMode) {
+  const isFactCheck = appMode === 'fact';
+  factCheckView.style.display = isFactCheck ? '' : 'none';
+  qaView.style.display = isFactCheck ? 'none' : '';
+  factCheckAppBtn.classList.toggle('active', isFactCheck);
+  qaAppBtn.classList.toggle('active', !isFactCheck);
+}
+factCheckAppBtn.addEventListener('click', () => setAppMode('fact'));
+qaAppBtn.addEventListener('click', () => setAppMode('qa'));
+
+/* ---------- Q&A: PDF upload ---------- */
+const pdfInput = document.getElementById('pdfInput');
+const pdfListBox = document.getElementById('pdfList');
+
+pdfInput.addEventListener('change', async () => {
+  const files = Array.from(pdfInput.files);
+  pdfInput.value = '';
+
+  for (const file of files) {
+    const row = document.createElement('div');
+    row.className = 'pdf-row';
+    row.textContent = `Uploading ${file.name}…`;
+    pdfListBox.appendChild(row);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/qa/pdf', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Upload failed (${res.status})`);
+      }
+      const data = await res.json();
+      row.textContent = `${data.filename} — ${data.chunks_indexed} chunks indexed`;
+    } catch (e) {
+      row.textContent = `${file.name} — failed: ${e.message}`;
+    }
+  }
+});
+
+/* ---------- Q&A: ask a question ---------- */
+const questionText = document.getElementById('questionText');
+const askBtn = document.getElementById('askBtn');
+const qaSpinner = document.getElementById('qaSpinner');
+const qaErrorBox = document.getElementById('qaError');
+const qaResultBox = document.getElementById('qaResult');
+
+async function askQuestion() {
+  qaErrorBox.style.display = 'none';
+  qaResultBox.style.display = 'none';
+
+  const question = questionText.value.trim();
+  if (question.length < 5) {
+    qaErrorBox.textContent = 'Please enter a question (at least 5 characters).';
+    qaErrorBox.style.display = 'block';
+    return;
+  }
+
+  askBtn.disabled = true;
+  qaSpinner.classList.add('active');
+
+  try {
+    const res = await fetch('/qa/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed (${res.status})`);
+    }
+
+    renderQAResult(await res.json());
+  } catch (e) {
+    qaErrorBox.textContent = e.message || 'Something went wrong.';
+    qaErrorBox.style.display = 'block';
+  } finally {
+    askBtn.disabled = false;
+    qaSpinner.classList.remove('active');
+  }
+}
+
+function renderQAResult(data) {
+  const badge = document.getElementById('qaSourceBadge');
+  const labels = { pdf: 'From your PDFs', web: 'From the web', none: 'No source found' };
+  badge.className = 'badge ' + data.source;
+  badge.innerHTML = `<span class="dot"></span><span>${labels[data.source] || data.source}</span>`;
+
+  document.getElementById('qaConfidenceText').textContent =
+    data.source === 'pdf' ? `${Math.round(data.confidence * 100)}% match` : '';
+  document.getElementById('qaAnswerText').textContent = data.answer;
+
+  const citationsList = document.getElementById('qaCitationsList');
+  citationsList.innerHTML = '';
+  (data.citations || []).forEach(citation => {
+    const li = document.createElement('li');
+    if (/^https?:\/\//i.test(citation)) {
+      const a = document.createElement('a');
+      a.href = citation;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = citation;
+      li.appendChild(a);
+    } else {
+      li.textContent = citation;
+    }
+    citationsList.appendChild(li);
+  });
+  document.getElementById('qaCitationsCard').style.display = (data.citations || []).length ? 'block' : 'none';
+
+  qaResultBox.style.display = 'block';
+  qaResultBox.querySelectorAll('.card').forEach((card, i) => {
+    card.classList.remove('reveal');
+    card.style.animationDelay = `${i * 0.1}s`;
+    void card.offsetWidth;
+    card.classList.add('reveal');
+  });
+}
+
+askBtn.addEventListener('click', askQuestion);
+questionText.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) askQuestion();
+});
+</script>
+</body>
+</html>
