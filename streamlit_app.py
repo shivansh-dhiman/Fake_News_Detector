@@ -14,20 +14,25 @@ import os
 
 import streamlit as st
 
-try:
-    for _key, _value in st.secrets.items():
-        if isinstance(_value, str) and _key not in os.environ:
-            os.environ[_key] = _value
-except Exception:
-    pass
+st.set_page_config(page_title="Veritas — Fake News Detector", page_icon="🛡️", layout="centered")
+
+_secrets_paths = [
+    os.path.join(os.path.dirname(__file__), ".streamlit", "secrets.toml"),
+    os.path.expanduser(os.path.join("~", ".streamlit", "secrets.toml")),
+]
+if any(os.path.exists(_p) for _p in _secrets_paths):
+    try:
+        for _key, _value in st.secrets.items():
+            if isinstance(_value, str) and _key not in os.environ:
+                os.environ[_key] = _value
+    except Exception:
+        pass
 
 from app import history, qa  # noqa: E402
 from app.agents.graph import compiled_graph  # noqa: E402
 from app.tools.article_fetcher import fetch_article_text  # noqa: E402
 from app.tools.pdf_extractor import extract_pdf_chunks  # noqa: E402
 from app.tools.pdf_index import add_document as add_pdf_document  # noqa: E402
-
-st.set_page_config(page_title="Veritas — Fake News Detector", page_icon="🛡️", layout="centered")
 
 VERDICT_COLORS = {"likely real": "#12946f", "likely fake": "#e0335f", "uncertain": "#b8860b"}
 VERDICT_ICONS = {"likely real": "🟢", "likely fake": "🔴", "uncertain": "🟡"}

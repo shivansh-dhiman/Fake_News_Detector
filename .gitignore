@@ -11,4 +11,5 @@ data/True.csv
 data/kaggle_sample.csv
 data/*.joblib
 .pytest_cache/
+*.log
 

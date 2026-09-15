@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: fake-news-detector
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_FACT_CHECK_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: RATE_LIMIT
+        value: 10/minute
